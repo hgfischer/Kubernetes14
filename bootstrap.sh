@@ -1,5 +1,9 @@
 #!/bin/bash
 
+NODE_TYPE=$1
+MASTER_IP=$2
+TOKEN=$3
+
 function disable_apt_interactive_mode() {
 	echo "Disabling APT interactive mode..."
 	sudo mv -v /etc/apt/apt.conf.d/70debconf /root/etc-apt-apt.conf.d-70debconf.bak
@@ -27,27 +31,25 @@ function install_apt_deps() {
 
 function setup_kubernetes_master() {
 	echo "Configuring Kubernetes Master..."
-	sudo kubeadm init
-	echo "Make a record of the kubeadm join command that kubeadm init outputs. You will need this in a moment."
-	echo "The key included here is secret, keep it safe!"
-	echo "Anyone with this key can add authenticated nodes to your cluster!"
-
+	echo "sudo kubeadm init --token $TOKEN --api-advertise-addresses=$MASTER_IP"
+	sudo kubeadm init --token $TOKEN --api-advertise-addresses=$MASTER_IP
+	sudo kubectl apply -f https://git.io/weave-kube
+	sudo kubectl create -f https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml
+	sudo kubectl config view
 }
 
 function setup_kubernetes_node() {
-	echo "To configure a Kubernetes Node..."
-	echo "$ vagrant ssh node"
-	echo "$ sudo su -"
-	echo "# kubeadm join --token <token> <master-ip>"
+	echo "Configuring a Kubernetes Node..."
+	echo "sudo kubeadm join --token $TOKEN $MASTER_IP"
+	sudo kubeadm join --token $TOKEN $MASTER_IP
 }
-
 
 disable_apt_interactive_mode
 setup_apt_repos
 update_upgrade_autoremove
 install_apt_deps
 
-if [[ "$@" == "master" ]]; then
+if [[ "$NODE_TYPE" == "master" ]]; then
 	setup_kubernetes_master
 else
 	setup_kubernetes_node
