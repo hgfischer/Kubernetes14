@@ -1,8 +1,10 @@
 #!/bin/bash
 
 NODE_TYPE=$1
-MASTER_IP=$2
-TOKEN=$3
+TOKEN=$2
+MASTER_IP=$3
+LOCAL_IP=$4
+
 
 function disable_apt_interactive_mode() {
 	echo "Disabling APT interactive mode..."
@@ -29,13 +31,18 @@ function install_apt_deps() {
 	sudo apt-get -y install docker.io kubelet kubeadm kubectl kubernetes-cni
 }
 
+function setup_kubelet_interface() {
+	sudo printf '[Service]\nEnvironment="KUBELET_EXTRA_ARGS=--hostname-override=%s"\n' $LOCAL_IP | \
+		sudo tee /etc/systemd/system/kubelet.service.d/09-hostname-override.conf
+}
+
 function setup_kubernetes_master() {
 	echo "Configuring Kubernetes Master..."
-	echo "sudo kubeadm init --token $TOKEN --api-advertise-addresses=$MASTER_IP"
 	sudo kubeadm init --token $TOKEN --api-advertise-addresses=$MASTER_IP
 	sudo kubectl apply -f https://git.io/weave-kube
-	sudo kubectl create -f https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml
+#	sudo kubectl create -f https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml
 	sudo kubectl config view
+	sudo kubectl get pods --all-namespaces
 }
 
 function setup_kubernetes_node() {
@@ -48,6 +55,7 @@ disable_apt_interactive_mode
 setup_apt_repos
 update_upgrade_autoremove
 install_apt_deps
+setup_kubelet_interface
 
 if [[ "$NODE_TYPE" == "master" ]]; then
 	setup_kubernetes_master
